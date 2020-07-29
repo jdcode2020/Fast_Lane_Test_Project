@@ -5,7 +5,77 @@
     
     
       
-      <testcase classname="fastlane.lanes" name="0: default_platform" time="0.000271">
+      <testcase classname="fastlane.lanes" name="00: default_platform" time="0.000282">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="01: Switch to ios increase_version_and_submit_to_git lane" time="0.000192">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="02: Switch to ios increase_version_lane lane" time="0.0003">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="03: get_version_number" time="0.085655">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="04: get_info_plist_value" time="0.001837">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="05: update_info_plist" time="0.004598">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="06: Switch to ios pod_install_update lane" time="0.000268">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="07: cocoapods" time="40.772585">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="08: install_provisioning_profile" time="0.111261">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="09: Switch to ios archive_and_export_ipa lane" time="0.000239">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="10: gym" time="22.929308">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="11: Switch to ios upload_ipa_to_fir_server lane" time="0.000198">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="12: Switch to ios upload_dsymbol_to_bugly_server lane" time="0.000296">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="13: zip" time="0.165487">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="14: curl -k &quot;https://api.bugly.qq.com/openapi/file/upload/symbol?app_key=&amp;app_id=&quot; --form &quot;api_version=1&quot; --form &quot;app_id=&quot; --form &quot;app_key=&quot; --form &quot;symbolType=2&quot; --form &quot;bundleId=com.shopee.FastLaneTestProject&quot; --form &quot;productVersion=1.0.1_%m_29_15_20&quot; --form &quot;channel=InternalTest&quot; --form &quot;fileName=app.dSYM.zip&quot; --form &quot;file=@/Users/jiandong/Downloads/GitRepos/Fast_Lane_Test_Project/build/07291519/app.dSYM.zip&quot; --verbose " time="3.004239">
         
       </testcase>
     
