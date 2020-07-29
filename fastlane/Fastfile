@@ -88,7 +88,7 @@ platform :ios do
     increase_version_lane
     `git add .`
     `git commit -m "v#{version_number}build#{build_number}"`
-    `git tag b#{version_number}build#{build_number}`
+    `git tag v#{version_number}build#{build_number}`
   end
 
   ############################
