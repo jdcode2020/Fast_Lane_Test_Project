@@ -44,7 +44,7 @@ platform :ios do
     # add actions here: https://docs.fastlane.tools/actions
 
     # 先删除构建目录
-    `rm -rf output_path`
+    sh("rm -rf #{output_path}")
 
     # 应用构建版本号自增并提交到GitHub代码库
     increase_version_and_submit_to_git
