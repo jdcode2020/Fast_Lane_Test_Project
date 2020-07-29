@@ -126,7 +126,7 @@ platform :ios do
     gym(
         clean: true,
         scheme: ENV["SCHEME"], # Scheme
-        workspace: ENV["WORKSPACE"], # .workspace所在路径
+        workspace: ENV["PROJECT_WORKSPACE"], # .workspace所在路径
         configuration: "Release", # Debug/Release/InternalRelease
         xcargs: "-UseModernBuildSystem=YES", # 打包参数，ModernBuildSystem
         output_directory: "#{output_path}", # iPA文件所在目录
