@@ -72,7 +72,6 @@ platform :ios do
   private_lane :pod_install_update do |options|
     #执行pod install
     cocoapods(
-      clean_install: true,
       repo_update: true,
       podfile: "./Podfile"
     )
