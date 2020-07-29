@@ -13,7 +13,6 @@
 # Uncomment the line if you want fastlane to automatically update itself
 # update_fastlane
 
-fastlane_require "image_magick"
 fastlane_require "fileutils"
 fastlane_require 'net/http'
 fastlane_require 'uri'
