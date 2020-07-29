@@ -29,7 +29,7 @@ time = Time.new
 time_str = time.strftime("%m%d%H%M") # time.strftime("%Y_%m_%d_%H_%M_%S")
 version_number = ""
 build_number = ""
-output_path = File.join(root_path, "build/#{time_str}" )
+output_path = File.join(root_path, "build" )
 UI.important output_path
 archive_path = "#{output_path}/#{ENV["PROJECT_NAME"]}.xcarchive"
 ipa_file_path = "#{output_path}/#{ENV["PROJECT_NAME"]}.ipa"
@@ -42,6 +42,9 @@ platform :ios do
   ############################
   lane :build_all do |options|
     # add actions here: https://docs.fastlane.tools/actions
+
+    # 先删除构建目录
+    `rm -rf output_path`
 
     # 应用构建版本号自增并提交到GitHub代码库
     increase_version_and_submit_to_git
@@ -56,7 +59,7 @@ platform :ios do
     # 项目归档并生成iPA文件
     archive_and_export_ipa
     
-    # 上传到FIR.IM内部分发平台
+    # 上传到FIR.IM分发平台
     upload_ipa_to_fir_server
 
     # 上传符号表文件到Bugly服务器
