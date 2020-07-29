@@ -65,11 +65,9 @@ platform :ios do
   end
 
   ############################
-  # 
+  # 更新pod
   ############################
   private_lane :pod_install_update do |options|
-    # 移除Podfile.lock
-
     #执行pod install
     cocoapods(
       clean_install: true,
