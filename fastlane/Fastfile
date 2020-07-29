@@ -1,0 +1,266 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+fastlane_require "image_magick"
+fastlane_require "fileutils"
+fastlane_require 'net/http'
+fastlane_require 'uri'
+fastlane_require 'json'
+fastlane_require 'rest_client'
+
+default_platform(:ios)
+
+root_path = File.expand_path(File.join(File.dirname(__FILE__), "../"))
+UI.important root_path
+
+time = Time.new
+time_str = time.strftime("%m%d%H%M") # time.strftime("%Y_%m_%d_%H_%M_%S")
+version_number = ""
+build_number = ""
+output_path = File.join(root_path, "build/#{time_str}" )
+UI.important output_path
+archive_path = "#{output_path}/#{ENV["PROJECT_NAME"]}.xcarchive"
+ipa_file_path = "#{output_path}/#{ENV["PROJECT_NAME"]}.ipa"
+
+platform :ios do
+  desc "Description of what the lane does"
+
+  ############################
+  # 打包全流程
+  ############################
+  lane :build_all do |options|
+    # add actions here: https://docs.fastlane.tools/actions
+
+    # 应用构建版本号自增并提交到GitHub代码库
+    increase_version_and_submit_to_git
+
+    # 更新pod
+    pod_install_update
+
+    # 安装 mobileprovision
+    profile_str = install_provisioning_profile(path: "./fastlane/ProvisioningProfile/dev.mobileprovision")
+    puts "profile_str: #{profile_str}"
+    
+    # 项目归档并生成iPA文件
+    archive_and_export_ipa
+    
+    # 上传到FIR.IM内部分发平台
+    upload_ipa_to_fir_server
+
+    # 上传符号表文件到Bugly服务器
+    upload_dsymbol_to_bugly_server
+
+  end
+
+  ############################
+  # 
+  ############################
+  private_lane :pod_install_update do |options|
+    # 移除Podfile.lock
+
+    #执行pod install
+    cocoapods(
+      clean_install: true,
+      repo_update: true,
+      podfile: "./Podfile"
+    )
+  end
+
+  ############################
+  # 应用构建版本号自增并提交到GitHub代码库
+  ############################
+  private_lane :increase_version_and_submit_to_git do |options|
+    # git 
+    `git fetch --all`
+    `git checkout master`
+    increase_version_lane
+    `git add .`
+    `git commit -m "v#{version_number}build#{build_number}"`
+    `git tag b#{version_number}build#{build_number}`
+  end
+
+  ############################
+  # 应用构建版本号自增
+  ############################
+  private_lane :increase_version_lane do |options|
+    version_number = get_version_number(
+      xcodeproj: "FastLaneTestProject.xcodeproj",
+      target: "FastLaneTestProject"
+    )
+    puts "version_number: #{version_number}"
+
+    #increment_build_number
+    #build_number = get_build_number()
+    #puts "build_number: #{build_number}"
+
+    build_number = get_info_plist_value(path: "./FastLaneTestProject/Info.plist", key: "CFBundleVersion")
+    puts "build_number: #{build_number}"
+    build_number = "#{build_number.to_i + 1}"
+
+    update_info_plist( # Advanced processing: find URL scheme for particular key and replace value
+      xcodeproj: "FastLaneTestProject.xcodeproj",
+      plist_path: "./FastLaneTestProject/Info.plist",
+      block: proc do |plist|
+        puts plist["CFBundleVersion"]
+        plist["CFBundleVersion"] = build_number
+      end
+    )
+  end
+
+  ############################
+  # 项目归档并生成iPA文件
+  ############################
+  private_lane :archive_and_export_ipa do |options|
+    gym(
+        clean: true,
+        scheme: ENV["SCHEME"], # Scheme
+        workspace: ENV["WORKSPACE"], # .workspace所在路径
+        configuration: "Release", # Debug/Release/InternalRelease
+        xcargs: "-UseModernBuildSystem=YES", # 打包参数，ModernBuildSystem
+        output_directory: "#{output_path}", # iPA文件所在目录
+        output_name: "#{ENV["PROJECT_NAME"]}.ipa", # iPA文件名
+        build_path: "#{output_path}", #
+        archive_path: "#{archive_path}", # xcarchive文件路径
+        buildlog_path: "#{output_path}", # 打包日志文件的路径
+        export_options: {# IPA导出
+            method: "development",
+            provisioningProfiles: {
+                "#{ENV["BUNDLE_ID"]}" => "ea3fa951-54ad-4780-b1a0-abff7fcb5741",
+            }
+        }
+    )
+  end
+
+  ############################
+  # 上传符号表文件到Bugly服务器
+  ############################
+  private_lane :upload_dsymbol_to_bugly_server do |options|
+    # 压缩符号表文件夹
+    dSYMs_folder_path = File.join(archive_path, "dSYMs") # 符号表文件夹所在目录
+    dSYMs_zip_file_path = File.join(output_path, "app.dSYM.zip") # 符号表文件夹压缩成zip文件的路径
+    if (File::exists?(dSYMs_folder_path))
+      UI.important "dSYMs_folder_path 符号表文件夹【存在】: #{dSYMs_folder_path}"
+      zip(
+        path: dSYMs_folder_path,
+        output_path: dSYMs_zip_file_path,
+        verbose: true,
+      )
+    else
+      UI.important "dSYMs_folder_path 符号表文件夹【不存在】: #{dSYMs_folder_path}"
+    end
+
+    # 上传符号表文件到Bugly服务器
+    if (File::exists?(dSYMs_zip_file_path))
+      UI.important "dSYMs_zip_file_path 符号表压缩文件【存在】: #{dSYMs_zip_file_path}"
+
+      # curl -k "https://api.bugly.qq.com/openapi/file/upload/symbol?app_key=xxxxxx&app_id=xxxxxx" 
+      #     --form "api_version=1" 
+      #     --form "app_id=xxxxxx" 
+      #     --form "app_key=xxxxxx" 
+      #     --form "symbolType=2"  
+      #     --form "bundleId=com.demo.test" 
+      #     --form "productVersion=1.0" 
+      #     --form "channel=xxx" 
+      #     --form "fileName=app.dSYM.zip" 
+      #     --form "file=@app.dSYM.zip" 
+      #     --verbose
+
+      time = Time.new
+      time_str = time.strftime("%%m_%d_%H_%M") #time.strftime("%Y_%m_%d_%H_%M_%S")
+      curl_cmd = %Q{curl -k "https://api.bugly.qq.com/openapi/file/upload/symbol?app_key=#{ENV["BUGLY_APP_KEY"]}&app_id=#{ENV["BUGLY_APP_ID"]}"}
+      curl_cmd += %Q{ --form "api_version=1"}
+      curl_cmd += %Q{ --form "app_id=#{ENV["BUGLY_APP_ID"]}"}
+      curl_cmd += %Q{ --form "app_key=#{ENV["BUGLY_APP_KEY"]}"}
+      curl_cmd += %Q{ --form "symbolType=2"}
+      curl_cmd += %Q{ --form "bundleId=#{ENV["BUNDLE_ID"]}"}
+      curl_cmd += %Q{ --form "productVersion=#{version_number}_#{time_str}"}
+      curl_cmd += %Q{ --form "channel=InternalTest"}
+      curl_cmd += %Q{ --form "fileName=app.dSYM.zip"}
+      curl_cmd += %Q{ --form "file=@#{dSYMs_zip_file_path}"}
+      curl_cmd += %Q{ --verbose }
+      UI.important "curl_cmd : #{curl_cmd}"
+      sh(curl_cmd)
+    else
+      UI.important "dSYMs_zip_file_path 符号表压缩文件【不存在】: #{dSYMs_zip_file_path}"
+    end
+  end
+
+  ############################
+  # 上传到FIR.IM内部分发平台
+  ############################
+  private_lane :upload_ipa_to_fir_server do |options|
+    # FIR.IM官网： https://www.betaqr.com
+    # FIR上传API文档: https://www.betaqr.com/docs/publish
+
+    # 第一步：获取上传凭证
+    json_body = {
+      "type" => "ios",
+      "bundle_id" => ENV["BUNDLE_ID"],
+      "api_token" => ENV["FIR_IM_API_TOKEN"]
+    }.to_json
+    url = URI.parse("http://api.bq04.com/apps")
+    req = Net::HTTP::Post.new(url.path,{'Content-Type' => 'application/json'})
+    req.body = json_body
+    res = Net::HTTP.new(url.host,url.port).start{|http| http.request(req)}
+    puts "\n\n #{res.body}"   
+    res_json_obj = JSON.parse(res.body)
+
+    icon_key = res_json_obj["cert"]["icon"]["key"]
+    icon_token = res_json_obj["cert"]["icon"]["token"]
+    icon_upload_url = res_json_obj["cert"]["icon"]["upload_url"]
+    binary_key = res_json_obj["cert"]["binary"]["key"]
+    binary_token = res_json_obj["cert"]["binary"]["token"]
+    binary_upload_url = res_json_obj["cert"]["binary"]["upload_url"]
+
+    # 第二步：上传文件
+    # 使用ruby的RestClient库上传iPA文件
+    payload =  {
+      :multipart => true,
+      :file => File.new(ipa_file_path, 'rb'),
+      :key => binary_key, 
+      :token => binary_token, 
+      :'x:name' => ENV["PROJECT_NAME"], 
+      :'x:version' => version_number, 
+      :'x:build' => build_number, 
+      :'x:release_type' => 'Adhoc', 
+      :'x:changelog' => 'changelogXXX'
+    }
+    puts "\n\npayload: #{payload.to_json}\n\n"
+    request = RestClient::Request.new(
+      :method => :post,
+      :url => binary_upload_url,
+      :payload => payload
+    )      
+    response = request.execute
+    puts "\n\n#{response.to_s}"
+    response_json_obj = JSON.parse(response.to_s)
+    download_url = response_json_obj["download_url"]
+    puts "\n\ndownload_url: " + download_url
+
+    # 使用 curl方式上传
+    # curl_cmd = %Q{curl   -F "key=#{binary_key}"}
+    # curl_cmd += %Q{ -F "token=#{binary_token}"}
+    # curl_cmd += %Q{ -F "file=@#{ipa_file_path}"}
+    # curl_cmd += %Q{ -F "x:name=#{ENV["PROJECT_NAME"]}"}
+    # curl_cmd += %Q{ -F "x:version=#{version_number}"}
+    # curl_cmd += %Q{ -F "x:build=#{build_number}"}
+    # curl_cmd += %Q{ -F "x:release_type=Adhoc"}
+    # curl_cmd += %Q{ -F "x:changelog=first"}
+    # curl_cmd += %Q{ #{binary_upload_url}}
+    # UI.important "curl_cmd : #{curl_cmd}"
+    # sh(curl_cmd)
+  end
+  
+end
